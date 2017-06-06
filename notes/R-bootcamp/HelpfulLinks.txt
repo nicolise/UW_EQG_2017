@@ -1,0 +1,7 @@
+Helpful video links to learn R
+
+https://youtu.be/DDInqjxUnS4
+https://youtu.be/wzPRpyoNaa8?list=PLKD3tbhuTFik3f_u2ISXOVuE_YALw4gWr
+
+And a textbook:
+https://www.springer.com/gp/book/9780387759357
