@@ -1,0 +1,207 @@
+---
+title: "Morphometrics"
+author: "Brian C. O'Meara"
+date: "6/8/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ape)
+library(abind)
+library(phytools)
+library(geiger)
+```
+
+First, need to make a few plotting functions:
+
+```{r, echo=FALSE}
+#' Plot outlines of taxa forms
+#' @param traits Matrix of measurements; rownames are taxa, cols are traits
+#' @param n Number of taxa in matrix to plot
+#' @param color Color to use
+PlotForms <- function(traits, n=NULL, color=rgb(0,0,0,.5)) {
+  x.values <- unlist(traits[seq(from=1, to=ncol(traits), by=2),])
+  y.values <- unlist(traits[seq(from=2, to=ncol(traits), by=2),])
+  plot(x.values, y.values, type="n", bty="n",asp=1)
+  if(is.null(n)) {
+    n=nrow(traits) 
+  }
+   for (taxon.index in sequence(n)) {
+      PlotSingleForm(traits[taxon.index,], color=color) 
+   }
+}
+
+#' Plot a single taxon
+#' @param trait.vector A vector of values: x is odd entries, y are even
+#' @param color Color of lines
+PlotSingleForm <- function(trait.vector, color=rgb(0,0,0,.5)) {
+  x.values <- unlist(trait.vector[seq(from=1, to=length(trait.vector), by=2)])
+  y.values <- unlist(trait.vector[seq(from=2, to=length(trait.vector), by=2)])
+  #lines(point.matrix$x, point.matrix$y, col=color)
+  polygon(x.values, y.values, border=color)
+}
+
+#' Plot outlines of taxa forms
+#' @param traits Matrix of measurements; rownames are taxa, cols are traits
+#' @param pc Principal components to plot
+#' @param just.mean If TRUE, plots the mean points; if FALSE, overplots all the fish
+PlotMeanAndPC <- function(traits, pc=NULL, just.mean=TRUE) {
+  x.values <- unlist(traits[seq(from=1, to=ncol(traits), by=2),])
+  y.values <- unlist(traits[seq(from=2, to=ncol(traits), by=2),])
+  plot(x.values, y.values, type="n", bty="n",asp=1)
+  all.means <- apply(traits, 2, mean)
+  x.means <- all.means[seq(from=1, to=ncol(traits), by=2)]
+  y.means <- all.means[seq(from=2, to=ncol(traits), by=2)]
+  x.pc <- pc[seq(from=1, to=ncol(traits), by=2)]
+  y.pc <- pc[seq(from=2, to=ncol(traits), by=2)]
+  if(just.mean) {
+    PlotSingleForm(all.means, color=rgb(0,0,0,.5)) 
+  } else {
+     PlotForms(traits, color=rgb(0,0,0,.05))
+     PlotSingleForm(all.means, color="black") 
+  }
+  if(!is.null(pc)) {
+    for (i in sequence(length(x.pc))) {
+      arrows(x0=x.means[i], y0=y.means[i], x1=x.means[i]+x.pc[i], y1=y.means[i]+y.pc[i],  length = 0.05, angle = 20, col = "red", lwd = 4)
+    }
+  }
+}
+```
+
+Get the data into R
+
+```{r}
+phy <- ape::read.tree("data/Ex5-1/tree.tre")
+phy <- ape::reorder.phylo(phy)
+```
+
+The ape package doesn't check to make sure taxa match between tree and data. We use treedata to check this, but could use functions in treeplyr instead.
+
+Note the repeated lines here: would be better done in a loop, but I wanted to avoid having assignment of object names.
+
+```{r}
+data1 <- geiger::treedata(phy, read.table("data/Ex5-1/dataset1.txt", row.names=1), sort=TRUE)$data
+data2 <- geiger::treedata(phy, read.table("data/Ex5-1/dataset2.txt", row.names=1), sort=TRUE)$data
+data3 <- geiger::treedata(phy, read.table("data/Ex5-1/dataset3.txt", row.names=1), sort=TRUE)$data
+data4 <- geiger::treedata(phy, read.table("data/Ex5-1/dataset4.txt", row.names=1), sort=TRUE)$data
+data5 <- geiger::treedata(phy, read.table("data/Ex5-1/dataset5.txt", row.names=1), sort=TRUE)$data
+
+phy <- geiger::treedata(phy, data1, sort=TRUE)$phy #and do the same for the phylo object
+
+all.data <- abind::abind(data1, data2, data3, data4, data5, along=3) #makes a 3d array.
+```
+
+Look at the data
+```{r}
+PlotForms(data1)
+```
+
+
+We can get phylogenetic independent contrasts 
+
+```{r}
+pic.scaled <- apply(data1, 2, ape::pic, phy=phy, scaled=TRUE)
+```
+
+stop("How do you expect size of data1 and pic.scaled to compare? The first dataset has 100 taxa and 20 chars.")
+
+```{r}
+print("Original dataset size")
+print(dim(data1))
+
+print("PIC dataset")
+print(dim(pic.scaled))
+```
+
+stop("What has changed?")
+
+Let's focus on a couple of traits in more detail, just the first and second.
+
+```{r}
+x.trait <- 1
+y.trait <- 2
+```
+
+Look at them on a tree
+
+```{r}
+phytools::phylomorphospace(phy, data1[,c(x.trait,y.trait)])
+```
+
+
+Look at correlations. How do they differ?
+
+```{r, echo=FALSE}
+plot(data1[,x.trait], data1[,y.trait], xlab=colnames(data1)[x.trait], ylab=colnames(data1)[y.trait], bty="n", pch=20, col=rgb(0,0,0,.5), main="Raw species traits")
+lm.result <- lm(paste(colnames(data1)[y.trait],"~",colnames(data1)[x.trait], sep=" "), data=data.frame(data1))
+abline(lm.result)
+
+plot(pic.scaled[,x.trait], pic.scaled[,y.trait], xlab=colnames(pic.scaled)[x.trait], ylab=colnames(pic.scaled)[y.trait], bty="n", pch=20, col=rgb(0,0,0,.5), main="Contrasts")
+lm.result <- lm(paste(colnames(pic.scaled)[y.trait],"~",colnames(pic.scaled)[x.trait], "- 1", sep=" "), data=data.frame(pic.scaled))
+abline(lm.result)
+#correlation moves from positive to negative, when you add the context of Contrast
+```
+
+We can look at PIC for a variety of traits. The trait itself is plotted on the diagonal.
+
+```{r, echo=FALSE}
+par(mfcol=c(min(5, ncol(pic.scaled)), min(5, ncol(pic.scaled))))
+for (i in sequence(min(5, ncol(pic.scaled)))) {
+	for (j in sequence(min(5, ncol(pic.scaled)))) {
+		if (i!=j) {
+			x.trait <- i
+			y.trait <- j
+			plot(pic.scaled[,x.trait], pic.scaled[,y.trait], xlab=colnames(pic.scaled)[x.trait], ylab=colnames(pic.scaled)[y.trait], bty="n", pch=20, col=rgb(0,0,0,.5))
+			lm.result <- lm(paste(colnames(pic.scaled)[y.trait],"~",colnames(pic.scaled)[x.trait], "- 1", sep=" "), data=data.frame(pic.scaled))
+			abline(lm.result)
+		} else {
+			contMap(phy, data1[,i])
+		}
+	}
+}
+
+#correlation and tree varied traits with PIC - "gut check" 
+#each x is a trait, each y is a trait
+```
+
+Simulate some uncorrelated and correlated evolution on a phylogeny
+```{r, echo=FALSE}
+sim.phy <- compute.brlen(ape::stree(2^7, type="balanced"))
+plot(sim.phy, show.tip.label=FALSE)
+sim.traits <- geiger::sim.char(sim.phy, par=matrix(c(1, 0.0, 0.0, 1), nrow=2, byrow=TRUE), nsim=1, model="BM")[,,1]
+par(mfcol=c(1,2))
+plot(sim.traits[,1], sim.traits[,2], bty="n", main="Raw (truth = uncorrelated)")
+pic1 <- pic(sim.traits[,1], phy=sim.phy)
+pic2 <- pic(sim.traits[,2], phy=sim.phy)
+plot(pic1, pic2, bty="n", main="PIC (truth = uncorrelated)")
+
+sim.traits <- geiger::sim.char(sim.phy, par=matrix(c(1, 0.5, 0.5, 1), nrow=2, byrow=TRUE), nsim=1, model="BM")[,,1]
+par(mfcol=c(1,2))
+plot(sim.traits[,1], sim.traits[,2], bty="n", main="Raw (truth = correlated)")
+pic1 <- pic(sim.traits[,1], phy=sim.phy)
+pic2 <- pic(sim.traits[,2], phy=sim.phy)
+plot(pic1, pic2, bty="n", main="PIC (truth = correlated)")
+
+```
+
+
+Now, an exercise: plot the mean with arrows showing the principal components.
+
+```{r}
+PC <- runif(ncol(data1)) #just making them up, REPLACE THIS
+PlotMeanAndPC(data1, PC, just.mean=FALSE)
+```
+
+Other things to investigate:
+
+* The same species in different simulations (use all.data: indices are [species, trait, replicate])
+* Variance within species.
+* Procrustes transformations
+
+Notes:
+datasets 1-5: independent simulations on shared tree
+Joe - simulated with variances and covariances among traits
+Need not be morphometric
+May need to log-transform your data
+
